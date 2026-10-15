@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "gamerplug": {
+      "type": "http",
+      "url": "https://gamerplug-mcp.vercel.app/mcp"
+    }
+  }
+}

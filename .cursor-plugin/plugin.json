@@ -1,0 +1,14 @@
+{
+  "name": "gamerplug",
+  "version": "1.0.0",
+  "description": "Looking for group: find real GamerPlug players to team up with by game, platform, mic, play style, vibe and Apex rank.",
+  "author": {
+    "name": "GamerPlug",
+    "email": "support@gamerplug.app"
+  },
+  "homepage": "https://gamerplug.app",
+  "repository": "https://github.com/ionpetro/gamerplug-plugin",
+  "license": "MIT",
+  "keywords": ["gaming", "lfg", "teammates", "matchmaking", "apex-legends", "fortnite", "valorant"],
+  "logo": "assets/logo.png"
+}
