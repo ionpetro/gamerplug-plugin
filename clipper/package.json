@@ -11,17 +11,17 @@
   "scripts": {
     "build": "pnpm -r --filter \"./packages/*\" run build && pnpm --filter @gamerplug/desktop run build",
     "build:packages": "pnpm -r --filter \"./packages/*\" run build",
-    "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm -r run test",
-    "lint": "pnpm -r run lint",
-    "recorder:test": "dotnet test recorder/GamerPlug.Recorder.sln",
-    "recorder:build": "dotnet build recorder/GamerPlug.Recorder.sln"
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "lint": "pnpm -r --if-present run lint",
+    "recorder:test": "dotnet test recorder/GamerPlug.Recorder.Core.Tests/GamerPlug.Recorder.Core.Tests.csproj",
+    "recorder:build": "dotnet build recorder/GamerPlug.Recorder.Core/GamerPlug.Recorder.Core.csproj"
   },
   "devDependencies": {
     "typescript": "^5.5.4",
     "vitest": "^2.0.5"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": ["esbuild", "electron", "electron-winstaller"]
   }
 }

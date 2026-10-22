@@ -97,7 +97,7 @@ describe("resumableUpload (gcs-resumable)", () => {
         }
         return {
           status: 403,
-          headers: {},
+          headers: {} as Record<string, string>,
           text: async () => "denied",
           json: async () => null,
           bytes: async () => new Uint8Array(),

@@ -45,3 +45,7 @@ Grok CLI: `grok mcp add --transport http gamerplug https://gamerplug-mcp.vercel.
 ## Support
 
 support@gamerplug.app · [gamerplug.app/contact](https://gamerplug.app/contact)
+
+## GamerPlug Clipper
+
+This repo also hosts **GamerPlug Clipper**, a Windows desktop game-clipping app (replay buffer + hotkey save + upload to a GamerPlug profile). See [`clipper/README.md`](clipper/README.md). The looking-for-group MCP plugin above is unchanged.

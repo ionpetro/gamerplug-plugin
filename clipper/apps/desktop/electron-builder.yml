@@ -1,0 +1,27 @@
+appId: app.gamerplug.clipper
+productName: GamerPlug Clipper
+copyright: Copyright © GamerPlug
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: extra/recorder
+    to: recorder
+    filter:
+      - "**/*"
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: "${productName}-Setup-${version}.${ext}"
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: GamerPlug Clipper
+asar: true
+electronVersion: 33.2.1

@@ -1,0 +1,55 @@
+name: clipper
+
+on:
+  push:
+    paths:
+      - "clipper/**"
+      - ".github/workflows/clipper.yml"
+  pull_request:
+    paths:
+      - "clipper/**"
+      - ".github/workflows/clipper.yml"
+
+jobs:
+  packages:
+    name: TypeScript packages + desktop
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clipper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: clipper/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --filter "./packages/*" run build
+      - run: pnpm -r --filter "./packages/*" run test
+      - run: pnpm --filter @gamerplug/desktop run build
+
+  recorder-core:
+    name: Recorder core tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Test platform-independent recorder
+        run: dotnet test clipper/recorder/GamerPlug.Recorder.Core.Tests/GamerPlug.Recorder.Core.Tests.csproj --nologo
+
+  recorder-windows:
+    name: Windows recorder compile
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build recorder for win-x64
+        run: dotnet build clipper/recorder/GamerPlug.Recorder/GamerPlug.Recorder.csproj -c Release
