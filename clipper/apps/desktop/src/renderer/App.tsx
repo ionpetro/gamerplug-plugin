@@ -4,6 +4,18 @@ import type { LibraryClip, Settings } from "@gamerplug/shared";
 type Tab = "library" | "settings" | "account";
 
 export function App() {
+  const api = window.gamerplug;
+  if (!api) {
+    return (
+      <div className="empty" data-testid="preload-missing">
+        Desktop bridge failed to load. The preload script did not expose the GamerPlug API.
+      </div>
+    );
+  }
+  return <AppShell api={api} />;
+}
+
+function AppShell({ api }: { api: Window["gamerplug"] }) {
   const [tab, setTab] = useState<Tab>("library");
   const [settings, setSettings] = useState<Settings | null>(null);
   const [clips, setClips] = useState<LibraryClip[]>([]);
@@ -16,11 +28,11 @@ export function App() {
 
   async function refresh() {
     const [s, lib, st, sess, mode] = await Promise.all([
-      window.gamerplug.settings.get(),
-      window.gamerplug.library.list(),
-      window.gamerplug.recorder.state(),
-      window.gamerplug.auth.session(),
-      window.gamerplug.auth.uploadMode(),
+      api.settings.get(),
+      api.library.list(),
+      api.recorder.state(),
+      api.auth.session(),
+      api.auth.uploadMode(),
     ]);
     setSettings(s);
     setClips(lib);
@@ -33,24 +45,24 @@ export function App() {
   useEffect(() => {
     void refresh();
     const offs = [
-      window.gamerplug.on("library:changed", (p) => setClips(p as LibraryClip[])),
-      window.gamerplug.on("recorder:state", (p) => setRecState(p as string)),
-      window.gamerplug.on("upload:event", () => {
-        void window.gamerplug.library.list().then(setClips);
+      api.on("library:changed", (p) => setClips(p as LibraryClip[])),
+      api.on("recorder:state", (p) => setRecState(p as string)),
+      api.on("upload:event", () => {
+        void api.library.list().then(setClips);
       }),
-      window.gamerplug.on("clip:saved", (p) => {
+      api.on("clip:saved", (p) => {
         const clip = p as LibraryClip;
         setSelectedId(clip.id);
-        void window.gamerplug.library.list().then(setClips);
+        void api.library.list().then(setClips);
       }),
     ];
     return () => offs.forEach((off) => off());
-  }, []);
+  }, [api]);
 
-  if (!settings) return <div className="empty">Loading…</div>;
+  if (!settings) return <div className="empty" data-testid="app-loading">Loading…</div>;
 
   return (
-    <div className="app">
+    <div className="app" data-testid="app">
       <header className="topbar">
         <div className="brand">
           GamerPlug <span>Clipper</span>
@@ -68,10 +80,18 @@ export function App() {
         </nav>
         <div className="status">
           <span className={`dot ${recState === "capturing" ? "on" : recState === "error" ? "err" : ""}`} />
-          {recState}
-          <button onClick={() => void window.gamerplug.recorder.start()}>Start</button>
-          <button onClick={() => void window.gamerplug.recorder.stop()}>Stop</button>
-          <button className="primary" onClick={() => void window.gamerplug.recorder.action("clip;30")}>
+          <span data-testid="recorder-state">{recState}</span>
+          <button data-testid="recorder-start" onClick={() => void api.recorder.start()}>
+            Start
+          </button>
+          <button data-testid="recorder-stop" onClick={() => void api.recorder.stop()}>
+            Stop
+          </button>
+          <button
+            className="primary"
+            data-testid="clip-save"
+            onClick={() => void api.recorder.action(`clip;${settings.replay.clipSeconds}`)}
+          >
             Clip {settings.replay.clipSeconds}s
           </button>
         </div>
@@ -83,7 +103,7 @@ export function App() {
         <SettingsView
           settings={settings}
           onSave={async (next) => {
-            const saved = await window.gamerplug.settings.set(next);
+            const saved = await api.settings.set(next);
             setSettings(saved);
           }}
         />
@@ -114,7 +134,7 @@ function LibraryView({
 }) {
   if (clips.length === 0) {
     return (
-      <div className="empty">
+      <div className="empty" data-testid="library-empty">
         No clips yet. Start capture and press the clip hotkey (default F9) while a game is on screen.
       </div>
     );
@@ -126,6 +146,13 @@ function LibraryView({
           <div
             key={c.id}
             className={`clip-row ${selected?.id === c.id ? "selected" : ""}`}
+            data-testid="clip-row"
+            data-clip-id={c.id}
+            data-filepath={c.filePath}
+            data-status={c.status}
+            data-checksum-verified={c.checksumVerified ? "true" : "false"}
+            data-crc32c={c.crc32c ?? ""}
+            data-duration={String(c.durationSec)}
             onClick={() => onSelect(c.id)}
           >
             {c.thumbnailPath ? (
@@ -134,10 +161,12 @@ function LibraryView({
               <div className="thumb placeholder" />
             )}
             <div className="clip-copy">
-              <div className="title">{c.title}</div>
+              <div className="title" data-testid="clip-title">{c.title}</div>
               <div className="meta">
                 {Math.round(c.durationSec)}s · {c.width}×{c.height}{" "}
-                <span className={`badge ${c.status}`}>{c.status}</span>
+                <span className={`badge ${c.status}`} data-testid="clip-status">
+                  {c.status}
+                </span>
               </div>
             </div>
           </div>
@@ -164,21 +193,30 @@ function ClipPreview({ clip, onChange }: { clip: LibraryClip; onChange: () => vo
 
   return (
     <div className="panel">
-      <h1>{clip.title}</h1>
-      <video src={fileUrl(clip.filePath)} controls />
+      <h1 data-testid="clip-preview-title">{clip.title}</h1>
+      <video data-testid="clip-video" src={fileUrl(clip.filePath)} controls />
       <div className="row">
         <label>Title</label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={() => void window.gamerplug.library.patch(clip.id, { title })}
+          data-testid="clip-title-input"
         />
       </div>
       <div className="trim">
         <h2>Trim (lossless remux)</h2>
         <div className="row">
           <label>Start (s)</label>
-          <input type="number" min={0} max={end} step={0.1} value={start} onChange={(e) => setStart(Number(e.target.value))} />
+          <input
+            type="number"
+            min={0}
+            max={end}
+            step={0.1}
+            value={start}
+            data-testid="trim-start"
+            onChange={(e) => setStart(Number(e.target.value))}
+          />
         </div>
         <div className="row">
           <label>End (s)</label>
@@ -188,6 +226,7 @@ function ClipPreview({ clip, onChange }: { clip: LibraryClip; onChange: () => vo
             max={clip.durationSec}
             step={0.1}
             value={end}
+            data-testid="trim-end"
             onChange={(e) => setEnd(Number(e.target.value))}
           />
         </div>
@@ -200,6 +239,7 @@ function ClipPreview({ clip, onChange }: { clip: LibraryClip; onChange: () => vo
       <div className="actions">
         <button
           disabled={busy}
+          data-testid="trim-apply"
           onClick={async () => {
             setBusy(true);
             setError(null);
@@ -218,6 +258,7 @@ function ClipPreview({ clip, onChange }: { clip: LibraryClip; onChange: () => vo
         <button
           className="primary"
           disabled={busy}
+          data-testid="upload-clip"
           onClick={async () => {
             setBusy(true);
             setError(null);

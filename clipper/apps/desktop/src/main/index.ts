@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { LibraryClip, Settings } from "@gamerplug/shared";
@@ -10,6 +10,12 @@ import { shouldShowMainWindow, windowIconPath } from "./trayIcon.js";
 import { loadSession, saveSession } from "./auth.js";
 import { loginWithPassword, uploadClip, type UploadMode } from "./uploadOrchestrator.js";
 import { extractThumbnail, trimCopy } from "./trim.js";
+
+if (process.env.GAMERPLUG_E2E === "1") {
+  app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("disable-dev-shm-usage");
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -63,7 +69,7 @@ function createWindow(): BrowserWindow {
     show: false,
     icon: windowIconPath(process.platform),
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
+      preload: path.join(__dirname, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
@@ -99,6 +105,7 @@ function bindIpc(): void {
     saveSettings(settings);
     try {
       await supervisor.applySettings(settings);
+      bindShellHotkeys();
     } catch {
       /* recorder may be disconnected */
     }
@@ -201,15 +208,20 @@ async function main(): Promise<void> {
   mainWindow = createWindow();
   mainWindow.once("ready-to-show", () => revealWindow(mainWindow!, "launch"));
   loadWindow(mainWindow);
-  createTray(mainWindow, supervisor);
-
-  await supervisor.start();
   try {
+    createTray(mainWindow, supervisor);
+  } catch (err) {
+    console.warn("tray unavailable", err);
+  }
+
+  try {
+    await supervisor.start();
     await supervisor.applySettings(settings);
     await supervisor.startHotkeys();
+    bindShellHotkeys();
     if (settings.recordOnStartup) await supervisor.startCapture();
-  } catch {
-    /* recorder missing on this OS */
+  } catch (err) {
+    console.warn("recorder missing or failed to start", err);
   }
 
   app.on("second-instance", () => showMainWindow("second-instance"));
@@ -217,8 +229,33 @@ async function main(): Promise<void> {
   app.on("activate", () => showMainWindow("activate"));
 }
 
+function bindShellHotkeys(): void {
+  try {
+    globalShortcut.unregisterAll();
+  } catch {
+    /* none registered */
+  }
+  // Windows capture host owns the low-level hook. Dev recorder (macOS/Linux, or
+  // GAMERPLUG_DEV_RECORDER=1) relies on Electron globalShortcut instead.
+  if (supervisor.recorderKind === "windows") return;
+  for (const binding of settings.hotkeys) {
+    try {
+      globalShortcut.register(binding.accelerator, () => {
+        void supervisor.executeAction(binding.action, "hotkey");
+      });
+    } catch (err) {
+      console.warn(`hotkey ${binding.accelerator} not registered`, err);
+    }
+  }
+}
+
 app.on("before-quit", () => {
   isQuitting = true;
+  try {
+    globalShortcut.unregisterAll();
+  } catch {
+    /* none */
+  }
   void supervisor?.stop();
 });
 

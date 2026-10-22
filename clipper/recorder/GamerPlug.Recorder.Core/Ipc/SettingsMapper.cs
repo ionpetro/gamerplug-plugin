@@ -1,7 +1,7 @@
 using System.Text.Json;
 using GamerPlug.Recorder.Core;
 
-namespace GamerPlug.Recorder.Ipc;
+namespace GamerPlug.Recorder.Core.Ipc;
 
 /// <summary>Maps the desktop's JSON settings object onto <see cref="RecorderSettings"/>.</summary>
 public static class SettingsMapper

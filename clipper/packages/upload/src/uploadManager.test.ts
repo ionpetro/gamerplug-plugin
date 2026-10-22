@@ -56,6 +56,8 @@ describe("runUpload", () => {
     });
 
     expect(result.status === "published" || result.status === "processing").toBe(true);
+    expect(result.checksumVerified).toBe(true);
+    expect(result.crc32c).toBeTruthy();
     expect(result.remoteClipId).toBeDefined();
     expect(backend.created).toHaveLength(1);
     expect(backend.finalized).toHaveLength(1);

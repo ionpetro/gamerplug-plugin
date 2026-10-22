@@ -5,8 +5,8 @@ using GamerPlug.Recorder.Capture;
 using GamerPlug.Recorder.Core;
 using GamerPlug.Recorder.Core.Engine;
 using GamerPlug.Recorder.Core.Mux;
+using GamerPlug.Recorder.Core.Ipc;
 using GamerPlug.Recorder.Input;
-using GamerPlug.Recorder.Ipc;
 using GamerPlug.Recorder.Pipeline;
 
 namespace GamerPlug.Recorder;

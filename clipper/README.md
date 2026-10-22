@@ -36,6 +36,7 @@ This is an independent implementation. Medal.tv was used as a **design reference
 | CRC32C, retry, resumable uploader, backends | `packages/upload` |
 | Replay buffer, engine, MP4 remuxer | `recorder/GamerPlug.Recorder.Core` |
 | Windows capture / encode / audio / IPC host | `recorder/GamerPlug.Recorder` |
+| Cross-platform dev recorder (testsrc → real ring) | `recorder/GamerPlug.Recorder.Dev` |
 | Electron tray app | `apps/desktop` |
 
 ### Replay buffer
@@ -89,15 +90,53 @@ pnpm test                       # shared + ipc + upload + desktop
 pnpm recorder:test              # 60+ xUnit tests (ring buffer, muxer, engine)
 ```
 
-### Desktop UI (any OS, no capture)
+### Desktop UI + dev recorder (macOS / Linux)
+
+Real WGC/DXGI capture is Windows-only. On macOS and Linux the Electron app auto-spawns **GamerPlug.Recorder.Dev**, which speaks the same JSON-RPC protocol (`ws://127.0.0.1:10603+`, Origin rejected) and feeds ffmpeg `testsrc2` + `sine` into the **real** Core replay ring. Clip save, lossless trim, and stub upload then work end-to-end.
 
 ```bash
+# macOS
+brew install ffmpeg
+# Linux: ffmpeg + a working display (or xvfb-run for tests)
+
+cd clipper
+pnpm install
+pnpm run build:packages
+dotnet build recorder/GamerPlug.Recorder.Dev/GamerPlug.Recorder.Dev.csproj -c Release
 pnpm --filter @gamerplug/desktop run build
-# then, with Electron installed:
+
+# non-Windows auto-selects the dev recorder; force it on Windows with GAMERPLUG_DEV_RECORDER=1
 pnpm --filter @gamerplug/desktop exec electron .
 ```
 
-On Linux/macOS the recorder exe is missing; the UI still runs (library, settings, stub upload).
+Hotkeys on macOS/Linux are registered by Electron (`F9` = last 30s, `F8` = 15s). The **Clip** button in the UI calls the same `executeAction` RPC.
+
+To drive the protocol without Electron (the desktop app must already be listening):
+
+```bash
+dotnet run --project recorder/GamerPlug.Recorder.Dev -c Release -- --electronPort 10603 --wsComms
+```
+
+Override the binary with `GAMERPLUG_RECORDER_EXE=/path/to/GamerPlug.Recorder.Dev.dll` (launched via `dotnet`). Size/fps: `GAMERPLUG_DEV_WIDTH`, `GAMERPLUG_DEV_HEIGHT`, `GAMERPLUG_DEV_FPS`.
+
+### End-to-end test (Playwright + Electron)
+
+The E2E launches the real desktop app under xvfb on Linux, waits for the preload bridge and the dev recorder, saves a clip, checks the MP4 with ffprobe, trims it, and uploads through `StubUploadBackend` with CRC32C verified.
+
+```bash
+# Linux without a display: the script wraps xvfb-run automatically
+cd clipper
+pnpm run test:e2e
+```
+
+On macOS, with ffmpeg on PATH and a window server:
+
+```bash
+cd clipper
+pnpm run recorder:dev
+pnpm --filter @gamerplug/desktop run build
+pnpm --filter @gamerplug/desktop run test:e2e
+```
 
 ### Windows capture
 
@@ -123,7 +162,7 @@ pnpm --filter @gamerplug/desktop run pack:win
 
 ## Tests & CI
 
-- **ubuntu-latest:** TypeScript package tests + desktop `tsc`/`vite` build; .NET Core xUnit (including an ffprobe-validated H.264+AAC remux when ffmpeg is present); Windows recorder cross-compile via `EnableWindowsTargeting`.
+- **ubuntu-latest:** TypeScript package tests + desktop `tsc`/`vite` build; .NET Core xUnit (including an ffprobe-validated H.264+AAC remux when ffmpeg is present); Windows recorder cross-compile via `EnableWindowsTargeting`; Dev recorder compile; Playwright Electron E2E under xvfb (clip save → ffprobe → trim → stub upload + CRC32C).
 - **windows-latest:** compile the WinExe (`GamerPlug.Recorder.csproj`). Capture/encode/audio still need a real GPU and a game window — see gaps.
 
 ## REA (Reverse Engineer Anything)

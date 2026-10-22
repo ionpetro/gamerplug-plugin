@@ -97,10 +97,13 @@ export async function runUpload(opts: RunUploadOptions): Promise<LibraryClip> {
       videoUrl: result.location,
     });
 
+    const checksumVerified = Boolean(result.serverCrc32c) && result.serverCrc32c === crc32c;
     emit({
       status: finalized.processing ? "processing" : "published",
       remoteVideoUrl: finalized.videoUrl,
       uploadProgress: 100,
+      crc32c,
+      checksumVerified,
     });
     return clip;
   } catch (err) {

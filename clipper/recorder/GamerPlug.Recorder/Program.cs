@@ -1,6 +1,6 @@
 using System.Windows.Forms;
 using GamerPlug.Recorder;
-using GamerPlug.Recorder.Ipc;
+using GamerPlug.Recorder.Core.Ipc;
 
 internal static class Program
 {

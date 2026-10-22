@@ -3,9 +3,6 @@ using GamerPlug.Recorder.Capture;
 using GamerPlug.Recorder.Core;
 using GamerPlug.Recorder.Core.Encode;
 using GamerPlug.Recorder.Core.Engine;
-using GamerPlug.Recorder.Core.Mux;
-using GamerPlug.Recorder.Encode;
-
 namespace GamerPlug.Recorder.Pipeline;
 
 /// <summary>
@@ -51,19 +48,21 @@ public sealed class CapturePipeline : ICaptureSource
         else if (_settings.Encoder == EncoderBackend.Auto && attempt.Backend != EncoderBackend.Nvenc)
             _onFallbackEncoder?.Invoke("auto", attempt.FfmpegVideoCodec, "earlier hardware encoder unavailable");
 
-        _workers.Add(Task.Run(() => ReadVideo(onVideo, _cts.Token)));
+        var videoOut = proc.Output;
+        _workers.Add(Task.Run(() => EncodedStreamPump.PumpH264(videoOut, _settings.Fps, onVideo, _cts.Token)));
 
         if (_settings.AudioTrackCount >= 1)
         {
             try
             {
                 _systemAudio = new WasapiPcmCapture("default", loopback: true);
-                _audioEnc = FfmpegEncoderStarter.StartAudio();
+                var audioEnc = FfmpegEncoderStarter.StartAudio();
+                _audioEnc = audioEnc;
                 _systemAudio.Start((buf, len) =>
                 {
-                    try { _audioEnc.Input.Write(buf, 0, len); } catch { /* encoder gone */ }
+                    try { audioEnc.Input.Write(buf, 0, len); } catch { /* encoder gone */ }
                 });
-                _workers.Add(Task.Run(() => ReadAudio(onAudio, 0, _cts.Token)));
+                _workers.Add(Task.Run(() => EncodedStreamPump.PumpAdts(audioEnc.Output, 0, onAudio, _cts.Token)));
             }
             catch
             {
@@ -93,58 +92,5 @@ public sealed class CapturePipeline : ICaptureSource
         if (_videoEnc is null) return;
         try { _videoEnc.Input.Write(frame.Bgra, 0, frame.Bgra.Length); }
         catch { /* encoder restart is the host's job */ }
-    }
-
-    private void ReadVideo(Action<MediaPacket> onVideo, CancellationToken ct)
-    {
-        var splitter = new AnnexBAccessUnitSplitter();
-        var buf = new byte[64 * 1024];
-        long pts = 0;
-        long dur = 1_000_000 / Math.Max(1, _settings.Fps);
-        while (!ct.IsCancellationRequested && _videoEnc is not null)
-        {
-            int n;
-            try { n = _videoEnc.Output.Read(buf, 0, buf.Length); }
-            catch { break; }
-            if (n <= 0) break;
-            foreach (var au in splitter.Push(buf.AsSpan(0, n)))
-            {
-                bool key = ContainsIdr(au);
-                onVideo(new MediaPacket(StreamKind.Video, 0, pts, pts, dur, key, au));
-                pts += dur;
-            }
-        }
-        foreach (var au in splitter.Flush())
-        {
-            onVideo(new MediaPacket(StreamKind.Video, 0, pts, pts, dur, ContainsIdr(au), au));
-            pts += dur;
-        }
-    }
-
-    private void ReadAudio(Action<MediaPacket> onAudio, int track, CancellationToken ct)
-    {
-        var splitter = new AdtsFrameSplitter();
-        var buf = new byte[16 * 1024];
-        long pts = 0;
-        const long dur = 21_333;
-        while (!ct.IsCancellationRequested && _audioEnc is not null)
-        {
-            int n;
-            try { n = _audioEnc.Output.Read(buf, 0, buf.Length); }
-            catch { break; }
-            if (n <= 0) break;
-            foreach (var frame in splitter.Push(buf.AsSpan(0, n)))
-            {
-                onAudio(new MediaPacket(StreamKind.Audio, track, pts, pts, dur, false, frame));
-                pts += dur;
-            }
-        }
-    }
-
-    private static bool ContainsIdr(byte[] au)
-    {
-        foreach (var nal in AnnexB.SplitNalUnits(au))
-            if (AnnexB.NalType(nal.Span) == AnnexB.NalIdr) return true;
-        return false;
     }
 }

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>GamerPlug.Recorder.Dev</RootNamespace>
+    <AssemblyName>GamerPlug.Recorder.Dev</AssemblyName>
+    <Version>0.1.0</Version>
+    <Description>
+      Cross-platform GamerPlug Clipper recorder for macOS/Linux (and Windows via GAMERPLUG_DEV_RECORDER).
+      Speaks the same JSON-RPC protocol as the Windows capture host, but feeds ffmpeg lavfi testsrc2+sine
+      into the real Core replay ring so clip save, remux, and upload can be exercised without WGC/DXGI.
+    </Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GamerPlug.Recorder.Core\GamerPlug.Recorder.Core.csproj" />
+  </ItemGroup>
+
+</Project>

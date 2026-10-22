@@ -15,7 +15,9 @@
     "test": "pnpm -r --if-present run test",
     "lint": "pnpm -r --if-present run lint",
     "recorder:test": "dotnet test recorder/GamerPlug.Recorder.Core.Tests/GamerPlug.Recorder.Core.Tests.csproj",
-    "recorder:build": "dotnet build recorder/GamerPlug.Recorder.Core/GamerPlug.Recorder.Core.csproj"
+    "recorder:build": "dotnet build recorder/GamerPlug.Recorder.Core/GamerPlug.Recorder.Core.csproj",
+    "recorder:dev": "dotnet build recorder/GamerPlug.Recorder.Dev/GamerPlug.Recorder.Dev.csproj -c Release",
+    "test:e2e": "pnpm run recorder:dev && pnpm --filter @gamerplug/desktop run build && pnpm --filter @gamerplug/desktop run test:e2e"
   },
   "devDependencies": {
     "typescript": "^5.5.4",

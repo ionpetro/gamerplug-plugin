@@ -1,8 +1,6 @@
 using System.Diagnostics;
-using GamerPlug.Recorder.Core;
-using GamerPlug.Recorder.Core.Encode;
 
-namespace GamerPlug.Recorder.Encode;
+namespace GamerPlug.Recorder.Core.Encode;
 
 /// <summary>Locates an FFmpeg binary. Override with GAMERPLUG_FFMPEG.</summary>
 public static class FfmpegLocator
@@ -12,14 +10,32 @@ public static class FfmpegLocator
         string? env = Environment.GetEnvironmentVariable("GAMERPLUG_FFMPEG");
         if (!string.IsNullOrEmpty(env) && File.Exists(env)) return env;
 
-        string beside = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
-        if (File.Exists(beside)) return beside;
+        string winName = "ffmpeg.exe";
+        string unixName = "ffmpeg";
+        string besideWin = Path.Combine(AppContext.BaseDirectory, winName);
+        if (File.Exists(besideWin)) return besideWin;
+        string besideUnix = Path.Combine(AppContext.BaseDirectory, unixName);
+        if (File.Exists(besideUnix)) return besideUnix;
 
-        string? path = FindOnPath("ffmpeg.exe") ?? FindOnPath("ffmpeg");
+        string? path = FindOnPath(unixName) ?? FindOnPath(winName);
         if (path != null) return path;
 
         throw new FileNotFoundException(
-            "ffmpeg not found. Place an LGPL ffmpeg.exe next to the recorder, add it to PATH, or set GAMERPLUG_FFMPEG.");
+            "ffmpeg not found. Place an LGPL ffmpeg next to the recorder, add it to PATH, or set GAMERPLUG_FFMPEG.");
+    }
+
+    public static bool TryFind(out string path)
+    {
+        try
+        {
+            path = Find();
+            return true;
+        }
+        catch
+        {
+            path = "";
+            return false;
+        }
     }
 
     private static string? FindOnPath(string name)
@@ -36,8 +52,8 @@ public static class FfmpegLocator
 }
 
 /// <summary>
-/// One ffmpeg child process with stdin (raw frames/PCM) and stdout (encoded
-/// elementary stream). stderr is drained so the pipe never blocks.
+/// One ffmpeg child process with optional stdin (raw frames/PCM) and stdout
+/// (encoded elementary stream). stderr is drained so the pipe never blocks.
 /// </summary>
 public sealed class FfmpegProcess : IDisposable
 {
@@ -68,7 +84,13 @@ public sealed class FfmpegProcess : IDisposable
         {
             while (await _proc.StandardError.ReadLineAsync() is { } line)
             {
-                if (line.Length > 0) Debug.WriteLine("[ffmpeg] " + line);
+                if (line.Length == 0) continue;
+                Debug.WriteLine("[ffmpeg] " + line);
+                if (line.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                    line.Contains("failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.Error.WriteLine("[ffmpeg] " + line);
+                }
             }
         }
         catch { /* process exited */ }

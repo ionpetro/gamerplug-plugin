@@ -7,7 +7,7 @@ import {
 } from "@gamerplug/ipc";
 import type { SavedClip, Settings } from "@gamerplug/shared";
 import { EventEmitter } from "node:events";
-import { recorderExecutable } from "./paths.js";
+import { recorderLaunch, type RecorderLaunch } from "./paths.js";
 
 export type RecorderUiState = "disconnected" | "starting" | "idle" | "capturing" | "saving" | "error";
 
@@ -24,6 +24,8 @@ export class RecorderSupervisor extends EventEmitter {
   private exits: { code: number | null; at: number }[] = [];
   private restarting = true;
   private uiState: RecorderUiState = "disconnected";
+  private launchKind: RecorderLaunch["kind"] | undefined;
+  private readyWaiters: Array<(ok: boolean, err?: Error) => void> = [];
 
   get state(): RecorderUiState {
     return this.uiState;
@@ -33,12 +35,17 @@ export class RecorderSupervisor extends EventEmitter {
     return this.port;
   }
 
+  get recorderKind(): RecorderLaunch["kind"] | undefined {
+    return this.launchKind;
+  }
+
   async start(): Promise<void> {
     this.restarting = true;
     this.server = await createRecorderIpcServer({ startPort: 10603, defaultTimeoutMs: 15_000 });
     this.port = this.server.port;
     this.server.onConnection((peer) => this.bindPeer(peer));
     this.spawnRecorder();
+    if (this.child) await this.waitForReady(25_000);
   }
 
   async stop(): Promise<void> {
@@ -82,6 +89,27 @@ export class RecorderSupervisor extends EventEmitter {
     return this.peer?.request("listAudioDevices");
   }
 
+  private waitForReady(timeoutMs: number): Promise<void> {
+    if (this.uiState === "idle" || this.uiState === "capturing") return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.readyWaiters = this.readyWaiters.filter((w) => w !== onReady);
+        reject(new Error(`recorder did not become ready (state=${this.uiState})`));
+      }, timeoutMs);
+      const onReady = (ok: boolean, err?: Error) => {
+        clearTimeout(timer);
+        if (ok) resolve();
+        else reject(err ?? new Error("recorder failed to start"));
+      };
+      this.readyWaiters.push(onReady);
+    });
+  }
+
+  private signalReady(ok: boolean, err?: Error): void {
+    const waiters = this.readyWaiters.splice(0);
+    for (const w of waiters) w(ok, err);
+  }
+
   private bindPeer(peer: JsonRpcPeer): void {
     this.peer = peer;
     peer.onRequest("handshake", (params) => {
@@ -94,6 +122,7 @@ export class RecorderSupervisor extends EventEmitter {
     peer.onRequest("ping", () => "pong");
     peer.onNotification("ready", () => {
       this.setState("idle");
+      this.signalReady(true);
     });
     peer.onNotification("state", (params) => {
       const state = (params as { state?: RecorderUiState }).state;
@@ -120,24 +149,42 @@ export class RecorderSupervisor extends EventEmitter {
   }
 
   private spawnRecorder(): void {
-    const exe = recorderExecutable();
-    if (!exe) {
+    const launch = recorderLaunch();
+    this.launchKind = launch?.kind;
+    if (!launch) {
       this.setState("error");
       this.emit("log", {
         level: "warn",
-        message: "Recorder executable not found (Windows build required). UI will run without capture.",
+        message:
+          "Recorder executable not found. On macOS/Linux build GamerPlug.Recorder.Dev (see clipper/README.md). On Windows, publish GamerPlug.Recorder.exe.",
       });
+      this.signalReady(false, new Error("recorder executable not found"));
       return;
     }
     this.setState("starting");
-    const child = spawn(exe, ["--electronPort", String(this.port), "--wsComms"], {
+    const args = [...launch.args, "--electronPort", String(this.port), "--wsComms"];
+    this.emit("log", {
+      level: "info",
+      message: `spawning ${launch.kind} recorder: ${launch.command} ${args.join(" ")}`,
+    });
+    const child = spawn(launch.command, args, {
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
+      cwd: launch.cwd,
+      env: { ...process.env },
     });
     this.child = child;
+    child.stdout?.on("data", (d: Buffer) =>
+      this.emit("log", { level: "info", message: d.toString().trimEnd() }),
+    );
     child.stderr?.on("data", (d: Buffer) =>
       this.emit("log", { level: "warn", message: d.toString().trimEnd() }),
     );
+    child.on("error", (err) => {
+      this.emit("log", { level: "error", message: `failed to spawn recorder: ${err.message}` });
+      this.setState("error");
+      this.signalReady(false, err);
+    });
     child.on("exit", (code) => this.onExit(code));
   }
 
@@ -154,6 +201,7 @@ export class RecorderSupervisor extends EventEmitter {
         level: "error",
         message: `recorder crash-loop: exit ${code} ×${same.length} in 120s, giving up`,
       });
+      this.signalReady(false, new Error(`recorder crash-loop exit ${code}`));
       return;
     }
     setTimeout(() => {

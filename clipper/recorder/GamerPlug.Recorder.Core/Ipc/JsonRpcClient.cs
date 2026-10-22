@@ -3,11 +3,12 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace GamerPlug.Recorder.Ipc;
+namespace GamerPlug.Recorder.Core.Ipc;
 
 /// <summary>
 /// JSON-RPC 2.0 client over a localhost WebSocket. Intentionally does not send
 /// an Origin header (the desktop server rejects any connection that has one).
+/// Shared by the Windows capture host and the cross-platform dev recorder.
 /// </summary>
 public sealed class JsonRpcClient : IDisposable
 {
@@ -16,6 +17,7 @@ public sealed class JsonRpcClient : IDisposable
     private readonly Dictionary<string, Func<JsonNode?, Task<JsonNode?>>> _requests = new();
     private readonly Dictionary<string, Func<JsonNode?, Task>> _notifications = new();
     private readonly object _gate = new();
+    private readonly SemaphoreSlim _send = new(1, 1);
     private int _nextId = 1;
     private CancellationTokenSource? _cts;
     private Task? _recv;
@@ -61,7 +63,7 @@ public sealed class JsonRpcClient : IDisposable
         };
         if (@params != null) msg["params"] = JsonSerializer.SerializeToNode(@params);
         await SendAsync(msg);
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(timeoutMs));
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(timeoutMs, CancellationToken.None));
         if (completed != tcs.Task)
         {
             lock (_gate) { _pending.Remove(id); }
@@ -142,12 +144,21 @@ public sealed class JsonRpcClient : IDisposable
     private async Task SendAsync(JsonObject msg)
     {
         byte[] bytes = Encoding.UTF8.GetBytes(msg.ToJsonString());
-        await _ws.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+        await _send.WaitAsync();
+        try
+        {
+            await _ws.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+        }
+        finally
+        {
+            _send.Release();
+        }
     }
 
     public void Dispose()
     {
         try { _cts?.Cancel(); } catch { }
         try { _ws.Dispose(); } catch { }
+        _send.Dispose();
     }
 }

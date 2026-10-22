@@ -52,6 +52,10 @@ export interface LibraryClip extends SavedClip {
   uploadError?: string;
   /** 0–100, best-effort during upload. */
   uploadProgress?: number;
+  /** Whole-file CRC32C (base64) computed before upload. */
+  crc32c?: string;
+  /** True when the storage backend echoed the same CRC32C. */
+  checksumVerified?: boolean;
 }
 
 /**
