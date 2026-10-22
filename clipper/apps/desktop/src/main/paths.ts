@@ -37,7 +37,8 @@ export function recorderLaunch(): RecorderLaunch | undefined {
 export function recorderExecutable(): string | undefined {
   const launch = recorderLaunch();
   if (!launch) return undefined;
-  if (launch.command === "dotnet") return launch.args[0];
+  const host = path.basename(launch.command);
+  if (host === "dotnet" || host === "dotnet.exe") return launch.args[0];
   return launch.command;
 }
 

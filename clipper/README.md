@@ -80,7 +80,7 @@ Set `GAMERPLUG_UPLOAD_MODE=supabase` (or sign in from the Account tab) to use th
 
 ## How to run
 
-Requires Node 20+, pnpm 10, .NET 8 SDK. Windows is required for capture; Linux can build/test everything except the WinExe.
+Requires Node 20+, pnpm 10, and a .NET SDK (8 or newer — net8.0 projects set `<RollForward>Major</RollForward>` so Homebrew’s current .NET 10 host works). Windows is required for capture; Linux can build/test everything except the WinExe.
 
 ```bash
 cd clipper
@@ -95,8 +95,9 @@ pnpm recorder:test              # 60+ xUnit tests (ring buffer, muxer, engine)
 Real WGC/DXGI capture is Windows-only. On macOS and Linux the Electron app auto-spawns **GamerPlug.Recorder.Dev**, which speaks the same JSON-RPC protocol (`ws://127.0.0.1:10603+`, Origin rejected) and feeds ffmpeg `testsrc2` + `sine` into the **real** Core replay ring. Clip save, lossless trim, and stub upload then work end-to-end.
 
 ```bash
-# macOS
+# macOS (Homebrew currently installs a .NET 10 SDK; the net8.0 recorder rolls forward)
 brew install ffmpeg
+brew install dotnet
 # Linux: ffmpeg + a working display (or xvfb-run for tests)
 
 cd clipper
@@ -108,6 +109,8 @@ pnpm --filter @gamerplug/desktop run build
 # non-Windows auto-selects the dev recorder; force it on Windows with GAMERPLUG_DEV_RECORDER=1
 pnpm --filter @gamerplug/desktop exec electron .
 ```
+
+GUI-launched Electron on macOS often has no Homebrew on `PATH`. The app looks for `dotnet` at `/opt/homebrew/bin/dotnet` and `/usr/local/share/dotnet/dotnet` (override with `GAMERPLUG_DOTNET` or `DOTNET_ROOT`).
 
 Hotkeys on macOS/Linux are registered by Electron (`F9` = last 30s, `F8` = 15s). The **Clip** button in the UI calls the same `executeAction` RPC.
 
@@ -129,7 +132,7 @@ cd clipper
 pnpm run test:e2e
 ```
 
-On macOS, with ffmpeg on PATH and a window server:
+On macOS, with ffmpeg and `dotnet` on PATH and a window server (`brew install ffmpeg dotnet`):
 
 ```bash
 cd clipper

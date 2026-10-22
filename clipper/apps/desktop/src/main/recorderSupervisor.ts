@@ -171,7 +171,7 @@ export class RecorderSupervisor extends EventEmitter {
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
       cwd: launch.cwd,
-      env: { ...process.env },
+      env: { ...process.env, ...launch.env },
     });
     this.child = child;
     child.stdout?.on("data", (d: Buffer) =>

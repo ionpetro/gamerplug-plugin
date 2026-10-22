@@ -6,6 +6,60 @@ export interface RecorderLaunch {
   args: string[];
   cwd?: string;
   kind: "windows" | "dev";
+  env?: NodeJS.Dict<string | undefined>;
+}
+
+/** Well-known locations GUI-launched Electron will not have on PATH. */
+export const DOTNET_WELL_KNOWN_UNIX = [
+  "/opt/homebrew/bin/dotnet",
+  "/usr/local/share/dotnet/dotnet",
+  "/usr/local/bin/dotnet",
+] as const;
+
+/**
+ * Locate a `dotnet` host. Finder/Dock launches on macOS often have a stripped
+ * PATH, so Homebrew (`/opt/homebrew/bin`) and the Microsoft layout
+ * (`/usr/local/share/dotnet`) are checked explicitly.
+ */
+export function resolveDotnetExecutable(input: {
+  platform: string;
+  env: NodeJS.Dict<string | undefined>;
+  existsSync?: (p: string) => boolean;
+}): string {
+  const probe = input.existsSync ?? ((p: string) => fs.existsSync(p));
+  const exe = input.platform === "win32" ? "dotnet.exe" : "dotnet";
+  const candidates: string[] = [];
+  if (input.env.GAMERPLUG_DOTNET) candidates.push(input.env.GAMERPLUG_DOTNET);
+  if (input.env.DOTNET_ROOT) candidates.push(path.join(input.env.DOTNET_ROOT, exe));
+  const pathValue = input.env.PATH ?? input.env.Path ?? "";
+  for (const dir of pathValue.split(path.delimiter)) {
+    if (dir) candidates.push(path.join(dir, exe));
+  }
+  if (input.platform !== "win32") candidates.push(...DOTNET_WELL_KNOWN_UNIX);
+  const found = candidates.find((p) => exists(p, probe));
+  return found ?? exe;
+}
+
+function extraEnvForDotnet(
+  dotnetPath: string,
+  inheritedPath: string | undefined,
+): NodeJS.Dict<string | undefined> {
+  const env: NodeJS.Dict<string | undefined> = { DOTNET_ROLL_FORWARD: "Major" };
+  const dir = path.dirname(dotnetPath);
+  if (dir.endsWith(`${path.sep}share${path.sep}dotnet`) || path.basename(dir) === "dotnet") {
+    env.DOTNET_ROOT = dir;
+  }
+  // Finder/Dock PATH is often `/usr/bin:/bin`. Keep Homebrew + the host dir
+  // in front so `dotnet` and `ffmpeg` resolve the same way as in a shell.
+  const prefix = [
+    path.isAbsolute(dotnetPath) ? dir : undefined,
+    "/opt/homebrew/bin",
+    "/usr/local/share/dotnet",
+    "/usr/local/bin",
+  ].filter((p): p is string => Boolean(p));
+  const unique = [...new Set(prefix)];
+  env.PATH = inheritedPath ? `${unique.join(path.delimiter)}${path.delimiter}${inheritedPath}` : unique.join(path.delimiter);
+  return env;
 }
 
 function exists(file: string, probe: (p: string) => boolean): boolean {
@@ -28,9 +82,24 @@ function clipperRootFromAppPath(appPath: string): string {
   return path.resolve(appPath, "..", "..");
 }
 
-function launchFromPath(file: string, kind: RecorderLaunch["kind"]): RecorderLaunch {
+function launchFromPath(
+  file: string,
+  kind: RecorderLaunch["kind"],
+  input: {
+    platform: string;
+    env: NodeJS.Dict<string | undefined>;
+    existsSync?: (p: string) => boolean;
+  },
+): RecorderLaunch {
   if (file.endsWith(".dll")) {
-    return { command: "dotnet", args: [file], cwd: path.dirname(file), kind };
+    const command = resolveDotnetExecutable(input);
+    return {
+      command,
+      args: [file],
+      cwd: path.dirname(file),
+      kind,
+      env: extraEnvForDotnet(command, input.env.PATH ?? input.env.Path),
+    };
   }
   return { command: file, args: [], cwd: path.dirname(file), kind };
 }
@@ -59,7 +128,7 @@ export function resolveRecorderLaunch(input: {
   const envExe = input.env.GAMERPLUG_RECORDER_EXE;
   if (envExe && exists(envExe, probe)) {
     const kind = envExe.includes("Recorder.Dev") || envExe.endsWith(".dll") ? "dev" : "windows";
-    return launchFromPath(envExe, kind);
+    return launchFromPath(envExe, kind, input);
   }
 
   const root = clipperRootFromAppPath(input.appPath);
@@ -74,7 +143,7 @@ export function resolveRecorderLaunch(input: {
       ],
       probe,
     );
-    if (devDll) return launchFromPath(devDll, "dev");
+    if (devDll) return launchFromPath(devDll, "dev", input);
 
     const devExeName = input.platform === "win32" ? "GamerPlug.Recorder.Dev.exe" : "GamerPlug.Recorder.Dev";
     const devExe = firstExisting(
@@ -85,7 +154,7 @@ export function resolveRecorderLaunch(input: {
       ],
       probe,
     );
-    if (devExe) return launchFromPath(devExe, "dev");
+    if (devExe) return launchFromPath(devExe, "dev", input);
   }
 
   const winExe = firstExisting(
@@ -103,6 +172,6 @@ export function resolveRecorderLaunch(input: {
     ],
     probe,
   );
-  if (winExe) return launchFromPath(winExe, "windows");
+  if (winExe) return launchFromPath(winExe, "windows", input);
   return undefined;
 }
