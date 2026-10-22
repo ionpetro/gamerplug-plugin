@@ -128,10 +128,17 @@ function LibraryView({
             className={`clip-row ${selected?.id === c.id ? "selected" : ""}`}
             onClick={() => onSelect(c.id)}
           >
-            <div className="title">{c.title}</div>
-            <div className="meta">
-              {Math.round(c.durationSec)}s · {c.width}×{c.height}{" "}
-              <span className={`badge ${c.status}`}>{c.status}</span>
+            {c.thumbnailPath ? (
+              <img className="thumb" src={fileUrl(c.thumbnailPath)} alt="" />
+            ) : (
+              <div className="thumb placeholder" />
+            )}
+            <div className="clip-copy">
+              <div className="title">{c.title}</div>
+              <div className="meta">
+                {Math.round(c.durationSec)}s · {c.width}×{c.height}{" "}
+                <span className={`badge ${c.status}`}>{c.status}</span>
+              </div>
             </div>
           </div>
         ))}

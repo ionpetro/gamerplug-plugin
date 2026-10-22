@@ -59,17 +59,38 @@ internal static class FfTools
             "-show_entries", "packet=flags,size,pos",
             "-of", "json",
             file);
+        return ParsePacketsJson(stdout);
+    }
 
+    /// <summary>
+    /// ffprobe JSON sometimes emits pos/size as strings ("123") and sometimes as
+    /// numbers. Accept both so packet slicing stays aligned with the file bytes.
+    /// </summary>
+    public static List<ProbedPacket> ParsePacketsJson(string stdout)
+    {
         var packets = new List<ProbedPacket>();
         using var doc = System.Text.Json.JsonDocument.Parse(stdout);
         if (!doc.RootElement.TryGetProperty("packets", out var arr)) return packets;
         foreach (var el in arr.EnumerateArray())
         {
-            long pos = el.TryGetProperty("pos", out var posEl) && long.TryParse(posEl.GetString(), out var p) ? p : -1;
-            int size = el.TryGetProperty("size", out var sizeEl) && int.TryParse(sizeEl.GetString(), out var s) ? s : -1;
-            bool key = el.TryGetProperty("flags", out var flagsEl) && (flagsEl.GetString()?.Contains('K') ?? false);
+            long pos = ReadInt64(el, "pos");
+            int size = (int)ReadInt64(el, "size");
+            bool key = el.TryGetProperty("flags", out var flagsEl)
+                       && flagsEl.ValueKind == System.Text.Json.JsonValueKind.String
+                       && (flagsEl.GetString()?.Contains('K') ?? false);
             if (size > 0 && pos >= 0) packets.Add(new ProbedPacket(pos, size, key));
         }
         return packets;
+    }
+
+    private static long ReadInt64(System.Text.Json.JsonElement el, string name)
+    {
+        if (!el.TryGetProperty(name, out var v)) return -1;
+        return v.ValueKind switch
+        {
+            System.Text.Json.JsonValueKind.Number when v.TryGetInt64(out var n) => n,
+            System.Text.Json.JsonValueKind.String when long.TryParse(v.GetString(), out var s) => s,
+            _ => -1,
+        };
     }
 }

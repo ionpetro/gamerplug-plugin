@@ -1,6 +1,4 @@
 using System.Runtime.InteropServices;
-using NAudio.CoreAudioApi;
-using NAudio.Wave;
 
 namespace GamerPlug.Recorder.Audio;
 
@@ -13,7 +11,6 @@ public sealed class ProcessLoopbackCapture : IDisposable
 {
     public const string VirtualDeviceProcessLoopback = "VAD\\Process_Loopback";
 
-    private WasapiCapture? _capture;
     private Action<byte[], int>? _onPcm;
 
     public void Start(int pid, Action<byte[], int> onPcm)
@@ -23,13 +20,14 @@ public sealed class ProcessLoopbackCapture : IDisposable
         // Wrap the IAudioClient in NAudio's WasapiCapture via a dummy MMDevice is
         // awkward; instead we run a minimal capture loop ourselves.
         _ = client;
+        _ = _onPcm;
         throw new NotSupportedException(
             "Process-loopback activation is compiled in (ActivateAudioInterfaceAsync + PROCESS_LOOPBACK) " +
             "but the capture pump still needs a real IAudioClient start on hardware. Use AudioMode=single until then.");
     }
 
-    public void Stop() => _capture?.StopRecording();
-    public void Dispose() => _capture?.Dispose();
+    public void Stop() { }
+    public void Dispose() { }
 
     /// <summary>
     /// Calls ActivateAudioInterfaceAsync with PROCESS_LOOPBACK params. Exposed so

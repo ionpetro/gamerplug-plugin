@@ -1,3 +1,4 @@
+using SharpGen.Runtime;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 
@@ -27,12 +28,16 @@ public sealed class DxgiFrameSource : IFrameSource
     public void Start(Action<CapturedFrame> onFrame)
     {
         using var factory = DXGI.CreateDXGIFactory1<IDXGIFactory1>();
-        factory.EnumAdapters1(0, out IDXGIAdapter1 adapter);
+        Result adapterResult = factory.EnumAdapters1(0, out IDXGIAdapter1 adapter);
+        if (adapterResult.Failure || adapter is null)
+            throw new CaptureStartException($"EnumAdapters1 failed: {adapterResult}");
         using (adapter)
         {
             D3DHelpers.CreateHardwareDevice(adapter, out _device, out _context);
 
-            adapter.EnumOutputs((uint)Math.Max(0, _monitorIndex), out IDXGIOutput output);
+            Result outputResult = adapter.EnumOutputs((uint)Math.Max(0, _monitorIndex), out IDXGIOutput output);
+            if (outputResult.Failure || output is null)
+                throw new CaptureStartException($"EnumOutputs failed: {outputResult}");
             using (output)
             {
                 var bounds = output.Description.DesktopCoordinates;

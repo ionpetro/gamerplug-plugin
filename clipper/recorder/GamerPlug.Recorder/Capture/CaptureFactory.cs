@@ -10,6 +10,24 @@ namespace GamerPlug.Recorder.Capture;
 public static class CaptureFactory
 {
     public static IFrameSource Create(RecorderSettings settings, out string actualBackend)
+        => StartWithFallback(settings, _ => { }, out actualBackend, start: false);
+
+    /// <summary>
+    /// Construct and start a frame source. Auto tries WGC first and falls back
+    /// to DXGI Desktop Duplication if <see cref="IFrameSource.Start"/> throws.
+    /// Constructors never fail, so fallback has to happen at Start.
+    /// </summary>
+    public static IFrameSource StartWithFallback(
+        RecorderSettings settings,
+        Action<CapturedFrame> onFrame,
+        out string actualBackend)
+        => StartWithFallback(settings, onFrame, out actualBackend, start: true);
+
+    private static IFrameSource StartWithFallback(
+        RecorderSettings settings,
+        Action<CapturedFrame> onFrame,
+        out string actualBackend,
+        bool start)
     {
         var order = settings.CaptureMode switch
         {
@@ -21,17 +39,20 @@ public static class CaptureFactory
         Exception? last = null;
         foreach (var name in order)
         {
+            IFrameSource? src = null;
             try
             {
-                IFrameSource src = name == "wgc"
+                src = name == "wgc"
                     ? new WgcFrameSource(settings.MonitorIndex, settings.ShowCursor)
                     : new DxgiFrameSource(settings.MonitorIndex);
+                if (start) src.Start(onFrame);
                 actualBackend = name;
                 return src;
             }
             catch (Exception ex)
             {
                 last = ex;
+                try { src?.Dispose(); } catch { /* ignore */ }
             }
         }
         throw new CaptureStartException("no capture backend could start", last ?? new InvalidOperationException());

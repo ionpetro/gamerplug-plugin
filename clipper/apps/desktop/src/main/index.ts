@@ -8,7 +8,7 @@ import { RecorderSupervisor } from "./recorderSupervisor.js";
 import { createTray } from "./tray.js";
 import { loadSession, saveSession } from "./auth.js";
 import { loginWithPassword, uploadClip, type UploadMode } from "./uploadOrchestrator.js";
-import { trimCopy } from "./trim.js";
+import { extractThumbnail, trimCopy } from "./trim.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -139,6 +139,11 @@ async function main(): Promise<void> {
     const clip = library.addFromSaved(saved);
     send("library:changed", library.list());
     send("clip:saved", clip);
+    void extractThumbnail(clip.filePath, clip.durationSec).then((thumbnailPath) => {
+      if (!thumbnailPath) return;
+      library.patch(clip.id, { thumbnailPath });
+      send("library:changed", library.list());
+    });
     if (settings.autoUpload) {
       void uploadClip(clip, settings, (e) => send("upload:event", e), uploadMode)
         .then((updated) => {

@@ -46,3 +46,25 @@ export function trimCopy(req: TrimRequest): Promise<string> {
     });
   });
 }
+
+/**
+ * Best-effort JPEG poster frame. Returns undefined when ffmpeg is missing or
+ * the source cannot be decoded — clip save still succeeds without a thumbnail.
+ */
+export function extractThumbnail(inputPath: string, durationSec: number): Promise<string | undefined> {
+  const ffmpeg = ffmpegExecutable() ?? "ffmpeg";
+  const parsed = path.parse(inputPath);
+  const out = path.join(parsed.dir, `${parsed.name}.jpg`);
+  const ss = Number.isFinite(durationSec) && durationSec > 0
+    ? Math.min(Math.max(durationSec * 0.25, 0), Math.max(durationSec - 0.05, 0))
+    : 0;
+  return new Promise((resolve) => {
+    const proc = spawn(
+      ffmpeg,
+      ["-hide_banner", "-loglevel", "error", "-y", "-ss", ss.toFixed(3), "-i", inputPath, "-frames:v", "1", "-q:v", "4", out],
+      { windowsHide: true },
+    );
+    proc.on("error", () => resolve(undefined));
+    proc.on("close", (code) => resolve(code === 0 && fs.existsSync(out) ? out : undefined));
+  });
+}

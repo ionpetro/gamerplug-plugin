@@ -118,8 +118,21 @@ public sealed class WgcFrameSource : IFrameSource
 
     private static IDirect3DDevice CreateWinrtDevice(ID3D11Device device)
     {
+        // Vortice's generic CreateDirect3D11DeviceFromDXGIDevice<T> constructs a
+        // SharpGen ComObject. IDirect3DDevice is a CsWinRT interface, so wrap the
+        // native IInspectable ourselves.
         using var dxgi = device.QueryInterface<IDXGIDevice>();
-        return D3D11.CreateDirect3D11DeviceFromDXGIDevice<IDirect3DDevice>(dxgi);
+        uint hr = NativeMethods.CreateDirect3D11DeviceFromDXGIDevice(dxgi.NativePointer, out IntPtr inspectable);
+        if (hr != 0 || inspectable == IntPtr.Zero)
+            Marshal.ThrowExceptionForHR(hr == 0 ? unchecked((int)0x80004005) : unchecked((int)hr));
+        try
+        {
+            return MarshalInterface<IDirect3DDevice>.FromAbi(inspectable);
+        }
+        finally
+        {
+            Marshal.Release(inspectable);
+        }
     }
 
     private static ID3D11Texture2D GetTextureFromSurface(IDirect3DSurface surface)

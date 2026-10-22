@@ -19,7 +19,6 @@ public sealed class CapturePipeline : ICaptureSource
     private readonly Action<string, string, string>? _onFallbackEncoder; // from, to, reason
     private IFrameSource? _frames;
     private WasapiPcmCapture? _systemAudio;
-    private WasapiPcmCapture? _mic;
     private FfmpegProcess? _videoEnc;
     private FfmpegProcess? _audioEnc;
     private CancellationTokenSource? _cts;
@@ -38,12 +37,8 @@ public sealed class CapturePipeline : ICaptureSource
     public void Start(Action<MediaPacket> onVideo, Action<MediaPacket> onAudio)
     {
         _cts = new CancellationTokenSource();
-        _frames = CaptureFactory.Create(_settings, out var backend);
+        _frames = CaptureFactory.StartWithFallback(_settings, WriteVideoFrame, out var backend);
         CaptureBackend = backend;
-
-        // Probe a first frame so we know the actual size (WGC item size can
-        // differ from the settings width/height).
-        _frames.Start(frame => WriteVideoFrame(frame));
 
         int w = _frames.Width > 0 ? _frames.Width : _settings.Width;
         int h = _frames.Height > 0 ? _frames.Height : _settings.Height;
@@ -82,14 +77,12 @@ public sealed class CapturePipeline : ICaptureSource
         _cts?.Cancel();
         _frames?.Stop();
         _systemAudio?.Stop();
-        _mic?.Stop();
         try { _videoEnc?.Input.Close(); } catch { }
         try { _audioEnc?.Input.Close(); } catch { }
         try { Task.WaitAll(_workers.ToArray(), 1500); } catch { }
         _videoEnc?.Dispose();
         _audioEnc?.Dispose();
         _systemAudio?.Dispose();
-        _mic?.Dispose();
         _frames?.Dispose();
     }
 

@@ -42,6 +42,8 @@ jobs:
           dotnet-version: "8.0.x"
       - name: Test platform-independent recorder
         run: dotnet test clipper/recorder/GamerPlug.Recorder.Core.Tests/GamerPlug.Recorder.Core.Tests.csproj --nologo
+      - name: Cross-compile Windows recorder
+        run: dotnet build clipper/recorder/GamerPlug.Recorder/GamerPlug.Recorder.csproj -c Release -p:EnableWindowsTargeting=true --nologo
 
   recorder-windows:
     name: Windows recorder compile

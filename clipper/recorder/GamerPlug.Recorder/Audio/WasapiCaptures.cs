@@ -11,7 +11,6 @@ public sealed class WasapiPcmCapture : IDisposable
     private readonly WasapiCapture _capture;
     private Action<byte[], int>? _onPcm;
     private readonly WaveFormat _target = new(48000, 16, 2);
-    private IWaveProvider? _resampler;
 
     public WasapiPcmCapture(string deviceId, bool loopback)
     {

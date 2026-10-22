@@ -1,32 +1,46 @@
 using System.Runtime.InteropServices;
+using SharpGen.Runtime;
 using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 
 namespace GamerPlug.Recorder.Capture;
 
-/// <summary>Shared Vortice 3.6 D3D11 helpers (the 3.x bindings are the raw COM signatures).</summary>
+/// <summary>
+/// Shared Vortice 3.6 D3D11 helpers. 3.x exposes friendly overloads (adapter +
+/// <see cref="DeviceCreationFlags"/>), not the raw 10-argument P/Invoke.
+/// </summary>
 internal static class D3DHelpers
 {
+    private static readonly FeatureLevel[] FeatureLevels =
+    {
+        FeatureLevel.Level_11_1,
+        FeatureLevel.Level_11_0,
+    };
+
     public static void CreateHardwareDevice(
         IDXGIAdapter? adapter,
         out ID3D11Device device,
         out ID3D11DeviceContext context)
     {
-        var levels = new[] { FeatureLevel.Level_11_1, FeatureLevel.Level_11_0 };
-        D3D11.D3D11CreateDevice(
-            adapter?.NativePointer ?? IntPtr.Zero,
-            adapter is null ? DriverType.Hardware : DriverType.Unknown,
-            IntPtr.Zero,
-            (uint)DeviceCreationFlags.BgraSupport,
-            levels,
-            (uint)levels.Length,
-            D3D11.SdkVersion,
-            out device!,
-            out _,
-            out context!);
-        if (device is null || context is null)
-            throw new CaptureStartException("D3D11CreateDevice returned a null device");
+        Result result = adapter is null
+            ? D3D11.D3D11CreateDevice(
+                IntPtr.Zero,
+                DriverType.Hardware,
+                DeviceCreationFlags.BgraSupport,
+                FeatureLevels,
+                out device!,
+                out context!)
+            : D3D11.D3D11CreateDevice(
+                adapter,
+                DriverType.Unknown,
+                DeviceCreationFlags.BgraSupport,
+                FeatureLevels,
+                out device!,
+                out context!);
+
+        if (result.Failure || device is null || context is null)
+            throw new CaptureStartException($"D3D11CreateDevice failed: {result}");
     }
 
     public static byte[] CopyTextureBgra(ID3D11Device device, ID3D11DeviceContext context, ID3D11Texture2D texture, out int width, out int height)
@@ -37,9 +51,9 @@ internal static class D3DHelpers
         stagingDesc.BindFlags = BindFlags.None;
         stagingDesc.CPUAccessFlags = CpuAccessFlags.Read;
         stagingDesc.MiscFlags = ResourceOptionFlags.None;
-        using var staging = device.CreateTexture2D(stagingDesc, null);
+        using var staging = device.CreateTexture2D(in stagingDesc);
         context.CopyResource(staging, texture);
-        context.Map(staging, 0, MapMode.Read, MapFlags.None, out MappedSubresource mapped);
+        MappedSubresource mapped = context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
         try
         {
             width = (int)desc.Width;

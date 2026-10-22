@@ -47,7 +47,7 @@ This follows the *shape* of Medal's `TimeDataBuffer` (memory / file / mmap backe
 ### Capture and encode (Windows)
 
 1. **Windows.Graphics.Capture** for a monitor (or, later, a window).
-2. **DXGI Desktop Duplication** if WGC fails (monitor-only).
+2. **DXGI Desktop Duplication** if WGC **Start** fails (monitor-only). Constructors never fail, so Auto fallback happens when capture actually starts.
 3. Frames are BGRA-copied to an **FFmpeg** child process. Encoder fallback: `h264_nvenc` → `h264_amf` → `h264_qsv` → `libx264` → `libopenh264` (same idea for HEVC/AV1). ffmpeg must be an **LGPL** build; do not ship GPL libobs/x264-GPL binaries.
 4. System audio: **WASAPI loopback** (NAudio). Per-process loopback (`ActivateAudioInterfaceAsync` + `AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK`) is compiled in for the split-track mode; the capture pump still needs a hardware pass.
 
@@ -123,7 +123,7 @@ pnpm --filter @gamerplug/desktop run pack:win
 
 ## Tests & CI
 
-- **ubuntu-latest:** TypeScript package tests + desktop `tsc`/`vite` build; .NET Core xUnit (including an ffprobe-validated H.264+AAC remux when ffmpeg is present).
+- **ubuntu-latest:** TypeScript package tests + desktop `tsc`/`vite` build; .NET Core xUnit (including an ffprobe-validated H.264+AAC remux when ffmpeg is present); Windows recorder cross-compile via `EnableWindowsTargeting`.
 - **windows-latest:** compile the WinExe (`GamerPlug.Recorder.csproj`). Capture/encode/audio still need a real GPU and a game window — see gaps.
 
 ## REA (Reverse Engineer Anything)
@@ -145,7 +145,7 @@ Medal itself was **not** on this VM. The attached REPORT.md v2 is a REA-verified
 - Per-process audio loopback activation is compiled but the IAudioClient pump is not finished (`AudioMode=split` will not capture yet).
 - Webcam, overlay, bookmarks-as-session-recording, WHIP live output: not in v0.1.
 - GamerPlug's private presign/MediaConvert endpoint is stubbed behind `GAMERPLUG_PRESIGN_URL`.
-- Thumbnail generation and `display_order` assignment are not implemented.
+- Thumbnail generation is best-effort (`ffmpeg` JPEG poster frame next to the clip). `display_order` assignment is not implemented.
 - Unpackaged WGC needs the included `app.manifest` `maxversiontested`; some Windows SKUs still prompt for capture permission.
 - No auto-update (Velopack) yet.
 

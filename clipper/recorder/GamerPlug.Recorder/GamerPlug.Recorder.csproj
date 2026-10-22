@@ -16,6 +16,8 @@
     <Platforms>AnyCPU;x64</Platforms>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <NoWarn>$(NoWarn);CS1591;CA1416</NoWarn>
+    <!-- Allows `dotnet build` of this WinExe on Linux CI / this VM. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 
   <ItemGroup>
