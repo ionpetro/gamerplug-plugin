@@ -2,10 +2,11 @@ import { app, BrowserWindow, ipcMain, shell } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { LibraryClip, Settings } from "@gamerplug/shared";
-import { loadSettings, saveSettings } from "./settingsStore.js";
+import { hasPersistedSettings, loadSettings, saveSettings } from "./settingsStore.js";
 import { ClipLibrary } from "./library.js";
 import { RecorderSupervisor } from "./recorderSupervisor.js";
 import { createTray } from "./tray.js";
+import { shouldShowMainWindow, windowIconPath } from "./trayIcon.js";
 import { loadSession, saveSession } from "./auth.js";
 import { loginWithPassword, uploadClip, type UploadMode } from "./uploadOrchestrator.js";
 import { extractThumbnail, trimCopy } from "./trim.js";
@@ -20,6 +21,37 @@ let uploadMode: UploadMode = (process.env.GAMERPLUG_UPLOAD_MODE as UploadMode) |
 
 let isQuitting = false;
 
+function persistedSettings(): boolean {
+  try {
+    return hasPersistedSettings();
+  } catch {
+    return false;
+  }
+}
+
+function revealWindow(win: BrowserWindow, reason: "launch" | "activate" | "second-instance"): void {
+  if (
+    shouldShowMainWindow({
+      startMinimized: settings.startMinimized,
+      hasPersistedSettings: persistedSettings(),
+      reason,
+    })
+  ) {
+    win.show();
+    win.focus();
+  }
+}
+
+function showMainWindow(reason: "launch" | "activate" | "second-instance"): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createWindow();
+    mainWindow.once("ready-to-show", () => revealWindow(mainWindow!, reason));
+    loadWindow(mainWindow);
+    return;
+  }
+  revealWindow(mainWindow, reason);
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1100,
@@ -28,7 +60,8 @@ function createWindow(): BrowserWindow {
     minHeight: 560,
     title: "GamerPlug Clipper",
     backgroundColor: "#0b0d12",
-    show: !settings.startMinimized,
+    show: false,
+    icon: windowIconPath(process.platform),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -42,14 +75,17 @@ function createWindow(): BrowserWindow {
       win.hide();
     }
   });
-  const devUrl = process.env.ELECTRON_RENDERER_URL;
-  if (devUrl) void win.loadURL(devUrl);
-  else void win.loadFile(path.join(__dirname, "../renderer/index.html"));
   win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: "deny" };
   });
   return win;
+}
+
+function loadWindow(win: BrowserWindow): void {
+  const devUrl = process.env.ELECTRON_RENDERER_URL;
+  if (devUrl) void win.loadURL(devUrl);
+  else void win.loadFile(path.join(__dirname, "../renderer/index.html"));
 }
 
 function send(channel: string, payload: unknown): void {
@@ -163,6 +199,8 @@ async function main(): Promise<void> {
 
   bindIpc();
   mainWindow = createWindow();
+  mainWindow.once("ready-to-show", () => revealWindow(mainWindow!, "launch"));
+  loadWindow(mainWindow);
   createTray(mainWindow, supervisor);
 
   await supervisor.start();
@@ -174,10 +212,9 @@ async function main(): Promise<void> {
     /* recorder missing on this OS */
   }
 
-  app.on("second-instance", () => {
-    mainWindow?.show();
-    mainWindow?.focus();
-  });
+  app.on("second-instance", () => showMainWindow("second-instance"));
+  // macOS: clicking the dock icon while the window is hidden (close-to-tray).
+  app.on("activate", () => showMainWindow("activate"));
 }
 
 app.on("before-quit", () => {

@@ -140,5 +140,5 @@ export const DEFAULT_SETTINGS: Settings = {
   ],
   autoUpload: false,
   recordOnStartup: true,
-  startMinimized: true,
+  startMinimized: false,
 };

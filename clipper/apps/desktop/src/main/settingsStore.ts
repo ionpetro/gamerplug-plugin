@@ -2,6 +2,14 @@ import fs from "node:fs";
 import { DEFAULT_SETTINGS, type Settings } from "@gamerplug/shared";
 import { defaultClipFolder, userData } from "./paths.js";
 
+export function hasPersistedSettings(): boolean {
+  try {
+    return fs.existsSync(userData("settings.json"));
+  } catch {
+    return false;
+  }
+}
+
 export function loadSettings(): Settings {
   const file = userData("settings.json");
   let loaded: Settings = {

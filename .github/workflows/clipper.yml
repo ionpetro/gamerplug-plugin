@@ -30,6 +30,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r --filter "./packages/*" run build
       - run: pnpm -r --filter "./packages/*" run test
+      - run: pnpm --filter @gamerplug/desktop run test
       - run: pnpm --filter @gamerplug/desktop run build
 
   recorder-core:

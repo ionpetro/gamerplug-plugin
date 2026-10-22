@@ -3,21 +3,25 @@ productName: GamerPlug Clipper
 copyright: Copyright © GamerPlug
 directories:
   output: release
-  buildResources: build
+  buildResources: icons
 files:
   - dist/**/*
   - package.json
+  - icons/**/*
 extraResources:
   - from: extra/recorder
     to: recorder
     filter:
       - "**/*"
 win:
+  icon: icon.ico
   target:
     - target: nsis
       arch:
         - x64
   artifactName: "${productName}-Setup-${version}.${ext}"
+mac:
+  icon: icon.png
 nsis:
   oneClick: false
   perMachine: false

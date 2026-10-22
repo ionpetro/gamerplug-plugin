@@ -1,10 +1,30 @@
-import { Menu, Tray, nativeImage, type BrowserWindow, app } from "electron";
-import path from "node:path";
+import { Menu, Tray, nativeImage, type BrowserWindow, app, type NativeImage } from "electron";
+import fs from "node:fs";
+import { desktopPackageRoot, macTemplateIconPaths, trayIconPath } from "./trayIcon.js";
 import type { RecorderSupervisor } from "./recorderSupervisor.js";
 
+/** GamerPlug GP mark: macOS template (black+alpha) or Windows .ico / Linux png. */
+export function loadTrayImage(root = desktopPackageRoot()): NativeImage {
+  if (process.platform === "darwin") {
+    const image = nativeImage.createEmpty();
+    for (const rep of macTemplateIconPaths(root)) {
+      if (!fs.existsSync(rep.path)) continue;
+      const encoded = nativeImage.createFromPath(rep.path);
+      image.addRepresentation({
+        width: rep.width,
+        height: rep.height,
+        scaleFactor: rep.scaleFactor,
+        buffer: encoded.toPNG(),
+      });
+    }
+    image.setTemplateImage(true);
+    return image;
+  }
+  return nativeImage.createFromPath(trayIconPath(process.platform, root));
+}
+
 export function createTray(window: BrowserWindow, supervisor: RecorderSupervisor): Tray {
-  const icon = nativeImage.createEmpty();
-  const tray = new Tray(icon);
+  const tray = new Tray(loadTrayImage());
   tray.setToolTip("GamerPlug Clipper");
 
   const rebuild = () => {
@@ -43,6 +63,5 @@ export function createTray(window: BrowserWindow, supervisor: RecorderSupervisor
     window.show();
     window.focus();
   });
-  void path; // keep import for a future real icon at extraResources/icon.png
   return tray;
 }

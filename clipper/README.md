@@ -85,7 +85,7 @@ Requires Node 20+, pnpm 10, .NET 8 SDK. Windows is required for capture; Linux c
 cd clipper
 pnpm install
 pnpm run build:packages
-pnpm test                       # shared + ipc + upload
+pnpm test                       # shared + ipc + upload + desktop
 pnpm recorder:test              # 60+ xUnit tests (ring buffer, muxer, engine)
 ```
 
