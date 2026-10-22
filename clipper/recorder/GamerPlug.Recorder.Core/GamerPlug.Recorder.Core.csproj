@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <RootNamespace>GamerPlug.Recorder.Core</RootNamespace>
+    <AssemblyName>GamerPlug.Recorder.Core</AssemblyName>
+    <Description>Platform-independent recorder core: encoded-packet replay buffer, chunked TimeDataBuffer with crash recovery, and clip extraction. No Windows APIs; unit-tested on any OS.</Description>
+  </PropertyGroup>
+
+</Project>
