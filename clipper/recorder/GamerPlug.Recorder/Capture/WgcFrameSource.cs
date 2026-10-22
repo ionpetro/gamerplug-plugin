@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using GamerPlug.Recorder.Native;
-using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Windows.Graphics.Capture;
@@ -49,12 +48,7 @@ public sealed class WgcFrameSource : IFrameSource
         _width = mon.Width;
         _height = mon.Height;
 
-        D3D11.D3D11CreateDevice(
-            driverType: DriverType.Hardware,
-            flags: DeviceCreationFlags.BgraSupport,
-            featureLevels: new[] { FeatureLevel.Level_11_1, FeatureLevel.Level_11_0 },
-            device: out _device);
-        _context = _device.ImmediateContext;
+        D3DHelpers.CreateHardwareDevice(null, out _device, out _context);
 
         _item = CreateItemForMonitor(mon.Handle);
         var winrtDevice = CreateWinrtDevice(_device);
@@ -96,27 +90,7 @@ public sealed class WgcFrameSource : IFrameSource
         try
         {
             var texture = GetTextureFromSurface(frame.Surface);
-            var desc = texture.Description;
-            var stagingDesc = desc;
-            stagingDesc.Usage = ResourceUsage.Staging;
-            stagingDesc.BindFlags = BindFlags.None;
-            stagingDesc.CPUAccessFlags = CpuAccessFlags.Read;
-            stagingDesc.MiscFlags = ResourceOptionFlags.None;
-            using var staging = _device.CreateTexture2D(stagingDesc);
-            _context.CopyResource(staging, texture);
-
-            var mapped = _context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-            int w = (int)desc.Width;
-            int h = (int)desc.Height;
-            var bgra = new byte[w * h * 4];
-            unsafe
-            {
-                byte* src = (byte*)mapped.DataPointer;
-                int srcStride = mapped.RowPitch;
-                for (int y = 0; y < h; y++)
-                    Marshal.Copy((IntPtr)(src + y * srcStride), bgra, y * w * 4, w * 4);
-            }
-            _context.Unmap(staging, 0);
+            var bgra = D3DHelpers.CopyTextureBgra(_device, _context, texture, out int w, out int h);
             texture.Dispose();
 
             long ts = frame.SystemRelativeTime.Ticks / 10; // 100ns -> us
@@ -145,9 +119,7 @@ public sealed class WgcFrameSource : IFrameSource
     private static IDirect3DDevice CreateWinrtDevice(ID3D11Device device)
     {
         using var dxgi = device.QueryInterface<IDXGIDevice>();
-        uint hr = NativeMethods.CreateDirect3D11DeviceFromDXGIDevice(dxgi.NativePointer, out IntPtr inspectable);
-        if (hr != 0) Marshal.ThrowExceptionForHR((int)hr);
-        return MarshalInspectable<IDirect3DDevice>.FromAbi(inspectable);
+        return D3D11.CreateDirect3D11DeviceFromDXGIDevice<IDirect3DDevice>(dxgi);
     }
 
     private static ID3D11Texture2D GetTextureFromSurface(IDirect3DSurface surface)

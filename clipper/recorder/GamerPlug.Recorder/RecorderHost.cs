@@ -154,7 +154,7 @@ public sealed class RecorderHost : IRecorderObserver, IDisposable
             {
                 _ = _rpc.NotifyAsync("fallbackEncoder", new { from, to, reason });
             });
-            _pipeline.Start(_engine.OnVideoPacket, _engine.OnAudioPacket);
+            _pipeline.Start(p => _engine.OnVideoPacket(p), p => _engine.OnAudioPacket(p));
             _engine.Start();
             _ = _rpc.NotifyAsync("captureStarted", new
             {

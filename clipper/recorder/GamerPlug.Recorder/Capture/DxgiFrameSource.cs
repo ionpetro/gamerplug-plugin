@@ -1,5 +1,3 @@
-using System.Runtime.InteropServices;
-using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 
@@ -29,22 +27,22 @@ public sealed class DxgiFrameSource : IFrameSource
     public void Start(Action<CapturedFrame> onFrame)
     {
         using var factory = DXGI.CreateDXGIFactory1<IDXGIFactory1>();
-        using var adapter = factory.GetAdapter1(0);
-        D3D11.D3D11CreateDevice(
-            adapter,
-            DriverType.Unknown,
-            DeviceCreationFlags.BgraSupport,
-            new[] { FeatureLevel.Level_11_1, FeatureLevel.Level_11_0 },
-            out _device);
-        _context = _device.ImmediateContext;
+        factory.EnumAdapters1(0, out IDXGIAdapter1 adapter);
+        using (adapter)
+        {
+            D3DHelpers.CreateHardwareDevice(adapter, out _device, out _context);
 
-        using var output = adapter.GetOutput(Math.Max(0, _monitorIndex));
-        var bounds = output.Description.DesktopCoordinates;
-        _width = Math.Abs(bounds.Right - bounds.Left);
-        _height = Math.Abs(bounds.Bottom - bounds.Top);
+            adapter.EnumOutputs((uint)Math.Max(0, _monitorIndex), out IDXGIOutput output);
+            using (output)
+            {
+                var bounds = output.Description.DesktopCoordinates;
+                _width = Math.Abs(bounds.Right - bounds.Left);
+                _height = Math.Abs(bounds.Bottom - bounds.Top);
 
-        using var output1 = output.QueryInterface<IDXGIOutput1>();
-        _duplication = output1.DuplicateOutput(_device);
+                using var output1 = output.QueryInterface<IDXGIOutput1>();
+                _duplication = output1.DuplicateOutput(_device);
+            }
+        }
 
         _cts = new CancellationTokenSource();
         _loop = Task.Factory.StartNew(() => Pump(onFrame, _cts.Token), _cts.Token,
@@ -77,26 +75,7 @@ public sealed class DxgiFrameSource : IFrameSource
             try
             {
                 using var texture = resource!.QueryInterface<ID3D11Texture2D>();
-                var desc = texture.Description;
-                var stagingDesc = desc;
-                stagingDesc.Usage = ResourceUsage.Staging;
-                stagingDesc.BindFlags = BindFlags.None;
-                stagingDesc.CPUAccessFlags = CpuAccessFlags.Read;
-                stagingDesc.MiscFlags = ResourceOptionFlags.None;
-                using var staging = _device.CreateTexture2D(stagingDesc);
-                _context.CopyResource(staging, texture);
-                var mapped = _context.Map(staging, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None);
-                int w = (int)desc.Width;
-                int h = (int)desc.Height;
-                var bgra = new byte[w * h * 4];
-                unsafe
-                {
-                    byte* src = (byte*)mapped.DataPointer;
-                    int srcStride = mapped.RowPitch;
-                    for (int y = 0; y < h; y++)
-                        Marshal.Copy((IntPtr)(src + y * srcStride), bgra, y * w * 4, w * 4);
-                }
-                _context.Unmap(staging, 0);
+                var bgra = D3DHelpers.CopyTextureBgra(_device, _context, texture, out int w, out int h);
                 onFrame(new CapturedFrame
                 {
                     Bgra = bgra,
