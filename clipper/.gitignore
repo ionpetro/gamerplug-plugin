@@ -1,0 +1,32 @@
+node_modules/
+dist/
+build/
+out/
+coverage/
+*.tsbuildinfo
+
+# Electron / packaging
+release/
+app-builds/
+
+# .NET
+bin/
+obj/
+*.user
+
+# FFmpeg runtime binaries fetched during packaging
+recorder/ffmpeg-runtime/
+ffmpeg/*.dll
+ffmpeg/*.exe
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Logs / local data
+*.log
+.DS_Store
+.env
+.env.local

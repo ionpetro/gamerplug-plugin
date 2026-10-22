@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RootNamespace>GamerPlug.Recorder</RootNamespace>
+    <AssemblyName>GamerPlug.Recorder</AssemblyName>
+    <Version>0.1.0</Version>
+    <Description>GamerPlug Clipper recorder process. Windows.Graphics.Capture + DXGI Desktop Duplication, hardware encode via FFmpeg (NVENC/AMF/QSV), WASAPI loopback, JSON-RPC control plane.</Description>
+    <Platforms>AnyCPU;x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <NoWarn>$(NoWarn);CS1591;CA1416</NoWarn>
+    <!-- Allows `dotnet build` of this WinExe on Linux CI / this VM. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GamerPlug.Recorder.Core\GamerPlug.Recorder.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.6.2" />
+    <PackageReference Include="Vortice.DXGI" Version="3.6.2" />
+  </ItemGroup>
+
+</Project>

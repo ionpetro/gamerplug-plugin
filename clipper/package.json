@@ -1,0 +1,29 @@
+{
+  "name": "gamerplug-clipper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GamerPlug Clipper — a Medal.tv-style desktop game clipping app that records a rolling replay buffer and uploads highlights to a GamerPlug profile.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter \"./packages/*\" run build && pnpm --filter @gamerplug/desktop run build",
+    "build:packages": "pnpm -r --filter \"./packages/*\" run build",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "pnpm -r --if-present run test",
+    "lint": "pnpm -r --if-present run lint",
+    "recorder:test": "dotnet test recorder/GamerPlug.Recorder.Core.Tests/GamerPlug.Recorder.Core.Tests.csproj",
+    "recorder:build": "dotnet build recorder/GamerPlug.Recorder.Core/GamerPlug.Recorder.Core.csproj",
+    "recorder:dev": "dotnet build recorder/GamerPlug.Recorder.Dev/GamerPlug.Recorder.Dev.csproj -c Release",
+    "test:e2e": "pnpm run recorder:dev && pnpm --filter @gamerplug/desktop run build && pnpm --filter @gamerplug/desktop run test:e2e"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "electron", "electron-winstaller"]
+  }
+}

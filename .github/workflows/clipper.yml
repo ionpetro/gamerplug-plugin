@@ -1,0 +1,99 @@
+name: clipper
+
+on:
+  push:
+    paths:
+      - "clipper/**"
+      - ".github/workflows/clipper.yml"
+  pull_request:
+    paths:
+      - "clipper/**"
+      - ".github/workflows/clipper.yml"
+
+jobs:
+  packages:
+    name: TypeScript packages + desktop
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clipper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: clipper/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --filter "./packages/*" run build
+      - run: pnpm -r --filter "./packages/*" run test
+      - run: pnpm --filter @gamerplug/desktop run test
+      - run: pnpm --filter @gamerplug/desktop run build
+
+  recorder-core:
+    name: Recorder core tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Test platform-independent recorder
+        run: dotnet test clipper/recorder/GamerPlug.Recorder.Core.Tests/GamerPlug.Recorder.Core.Tests.csproj --nologo
+      - name: Cross-compile Windows recorder
+        run: dotnet build clipper/recorder/GamerPlug.Recorder/GamerPlug.Recorder.csproj -c Release -p:EnableWindowsTargeting=true --nologo
+      - name: Build cross-platform dev recorder
+        run: dotnet build clipper/recorder/GamerPlug.Recorder.Dev/GamerPlug.Recorder.Dev.csproj -c Release --nologo
+
+  recorder-windows:
+    name: Windows recorder compile
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build recorder for win-x64
+        run: dotnet build clipper/recorder/GamerPlug.Recorder/GamerPlug.Recorder.csproj -c Release
+
+  desktop-e2e:
+    name: Desktop Electron E2E
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clipper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: clipper/pnpm-lock.yaml
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Install Electron / ffmpeg / xvfb dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb ffmpeg \
+            libnss3 libatk-bridge2.0-0 libdrm2 libgbm1 \
+            libgtk-3-0 libcups2 libxkbcommon0 \
+            libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+            libpango-1.0-0 libcairo2
+          sudo apt-get install -y --no-install-recommends libasound2t64 \
+            || sudo apt-get install -y --no-install-recommends libasound2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r --filter "./packages/*" run build
+      - name: Build desktop app and dev recorder
+        run: |
+          dotnet build recorder/GamerPlug.Recorder.Dev/GamerPlug.Recorder.Dev.csproj -c Release --nologo
+          pnpm --filter @gamerplug/desktop run build
+      - name: Run Playwright Electron E2E
+        run: pnpm --filter @gamerplug/desktop run test:e2e
