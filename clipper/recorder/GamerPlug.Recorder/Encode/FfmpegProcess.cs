@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using GamerPlug.Recorder.Core;
 using GamerPlug.Recorder.Core.Encode;
 
 namespace GamerPlug.Recorder.Encode;
